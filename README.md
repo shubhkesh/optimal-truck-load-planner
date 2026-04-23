@@ -152,14 +152,16 @@ curl -X POST http://localhost:8080/api/v1/load-optimizer/optimize \
 ```json
 {
   "truck_id": "truck-123",
-  "selected_order_ids": ["ord-001", "ord-002"],
-  "total_payout_cents": 430000,
-  "total_weight_lbs": 30000,
-  "total_volume_cuft": 2100,
-  "utilization_weight_percent": 68.18,
-  "utilization_volume_percent": 70.0
+  "selected_order_ids": ["ord-002", "ord-003"],
+  "total_payout_cents": 500000,
+  "total_weight_lbs": 42000,
+  "total_volume_cuft": 2700,
+  "utilization_weight_percent": 95.45,
+  "utilization_volume_percent": 90.0
 }
 ```
+
+**Note:** The algorithm selects ord-002 + ord-003 (500,000 cents) instead of ord-001 + ord-002 (430,000 cents) because it maximizes revenue while respecting all constraints. Even though ord-003 is hazmat, it can be combined with non-hazmat orders (only multiple hazmat orders together are prohibited).
 
 ### Request Schema
 
