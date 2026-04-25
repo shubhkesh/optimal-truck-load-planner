@@ -1,6 +1,8 @@
 package com.teleport.loadplanner.service;
 
 import com.teleport.loadplanner.exception.InvalidRequestException;
+import com.teleport.loadplanner.exception.PayloadTooLargeException;
+import com.teleport.loadplanner.model.OptimizationMode;
 import com.teleport.loadplanner.model.OptimizationRequest;
 import com.teleport.loadplanner.model.OptimizationResponse;
 import com.teleport.loadplanner.model.Order;
@@ -32,7 +34,7 @@ class LoadOptimizerServiceTest {
         List<Order> orders = List.of(
                 createOrder("ord-001", 250000L, 18000, 1200, false),
                 createOrder("ord-002", 180000L, 12000, 900, false),
-                createOrder("ord-003", 320000L, 30000, 1800, false)
+                createOrder("ord-003", 320000L, 30000, 1800, true)
         );
         
         OptimizationRequest request = new OptimizationRequest(truck, orders);
@@ -42,11 +44,11 @@ class LoadOptimizerServiceTest {
         assertNotNull(response);
         assertEquals("truck-123", response.getTruckId());
         assertEquals(2, response.getSelectedOrderIds().size());
+        assertTrue(response.getSelectedOrderIds().contains("ord-001"));
         assertTrue(response.getSelectedOrderIds().contains("ord-002"));
-        assertTrue(response.getSelectedOrderIds().contains("ord-003"));
-        assertEquals(500000L, response.getTotalPayoutCents());
-        assertEquals(42000, response.getTotalWeightLbs());
-        assertEquals(2700, response.getTotalVolumeCuft());
+        assertEquals(430000L, response.getTotalPayoutCents());
+        assertEquals(30000, response.getTotalWeightLbs());
+        assertEquals(2100, response.getTotalVolumeCuft());
         assertTrue(response.getTotalWeightLbs() <= 44000);
         assertTrue(response.getTotalVolumeCuft() <= 3000);
     }
@@ -117,7 +119,7 @@ class LoadOptimizerServiceTest {
     }
     
     @Test
-    void optimize_hazmat_only_one_allowed() {
+    void optimize_hazmat_isolation() {
         Truck truck = new Truck("truck-hazmat", 50000, 3000);
         List<Order> orders = List.of(
                 createOrder("ord-001", 200000L, 10000, 1000, true),
@@ -129,11 +131,19 @@ class LoadOptimizerServiceTest {
         
         OptimizationResponse response = cut.optimize(request);
         
+        boolean hasHazmat = response.getSelectedOrderIds().stream()
+                .anyMatch(id -> id.equals("ord-001") || id.equals("ord-002"));
+        boolean hasNonHazmat = response.getSelectedOrderIds().contains("ord-003");
+        
+        assertFalse(hasHazmat && hasNonHazmat, "Hazmat and non-hazmat orders must not be combined");
+        
         long hazmatCount = response.getSelectedOrderIds().stream()
                 .filter(id -> id.equals("ord-001") || id.equals("ord-002"))
                 .count();
+        assertTrue(hazmatCount <= 1, "At most one hazmat order allowed");
         
-        assertTrue(hazmatCount <= 1);
+        assertEquals("ord-002", response.getSelectedOrderIds().get(0));
+        assertEquals(250000L, response.getTotalPayoutCents());
     }
     
     @Test
@@ -174,7 +184,7 @@ class LoadOptimizerServiceTest {
         
         OptimizationRequest request = new OptimizationRequest(truck, orders);
         
-        assertThrows(InvalidRequestException.class, () -> cut.optimize(request));
+        assertThrows(PayloadTooLargeException.class, () -> cut.optimize(request));
     }
     
     @Test
@@ -244,6 +254,76 @@ class LoadOptimizerServiceTest {
         assertEquals(1500, response.getTotalVolumeCuft());
     }
     
+    @Test
+    void optimize_utilization_mode_prefers_higher_fill() {
+        Truck truck = new Truck("truck-util", 44000, 3000);
+        List<Order> orders = List.of(
+                createOrder("ord-high-pay", 500000L, 5000, 300, false),
+                createOrder("ord-high-util", 100000L, 40000, 2800, false)
+        );
+
+        OptimizationRequest request = new OptimizationRequest(truck, orders, OptimizationMode.UTILIZATION);
+
+        OptimizationResponse response = cut.optimize(request);
+
+        assertTrue(response.getSelectedOrderIds().contains("ord-high-util"),
+                "UTILIZATION mode should prefer the order that fills the truck more");
+    }
+
+    @Test
+    void optimize_balanced_mode_considers_both() {
+        Truck truck = new Truck("truck-bal", 44000, 3000);
+        List<Order> orders = List.of(
+                createOrder("ord-001", 250000L, 18000, 1200, false),
+                createOrder("ord-002", 180000L, 12000, 900, false),
+                createOrder("ord-003", 320000L, 30000, 1800, true)
+        );
+
+        OptimizationRequest request = new OptimizationRequest(truck, orders, OptimizationMode.BALANCED);
+
+        OptimizationResponse response = cut.optimize(request);
+
+        assertNotNull(response);
+        assertTrue(response.getTotalPayoutCents() > 0);
+        assertTrue(response.getTotalWeightLbs() <= 44000);
+        assertTrue(response.getTotalVolumeCuft() <= 3000);
+    }
+
+    @Test
+    void optimize_pareto_solutions_present() {
+        Truck truck = new Truck("truck-pareto", 44000, 3000);
+        List<Order> orders = List.of(
+                createOrder("ord-001", 250000L, 18000, 1200, false),
+                createOrder("ord-002", 180000L, 12000, 900, false),
+                createOrder("ord-003", 50000L, 40000, 2800, false)
+        );
+
+        OptimizationRequest request = new OptimizationRequest(truck, orders);
+
+        OptimizationResponse response = cut.optimize(request);
+
+        assertNotNull(response.getParetoSolutions());
+        assertFalse(response.getParetoSolutions().isEmpty());
+    }
+
+    @Test
+    void optimize_default_mode_is_revenue() {
+        Truck truck = new Truck("truck-default", 44000, 3000);
+        List<Order> orders = List.of(
+                createOrder("ord-001", 300000L, 10000, 800, false),
+                createOrder("ord-002", 100000L, 38000, 2500, false)
+        );
+
+        OptimizationRequest requestDefault = new OptimizationRequest(truck, orders);
+        OptimizationRequest requestRevenue = new OptimizationRequest(truck, orders, OptimizationMode.REVENUE);
+
+        OptimizationResponse r1 = cut.optimize(requestDefault);
+        OptimizationResponse r2 = cut.optimize(requestRevenue);
+
+        assertEquals(r1.getSelectedOrderIds(), r2.getSelectedOrderIds());
+        assertEquals(r1.getTotalPayoutCents(), r2.getTotalPayoutCents());
+    }
+
     private Order createOrder(String id, long payout, int weight, int volume, boolean hazmat) {
         return createOrder(id, "Los Angeles, CA", "Dallas, TX", payout, weight, volume, hazmat);
     }

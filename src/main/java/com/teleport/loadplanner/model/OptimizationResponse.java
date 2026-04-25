@@ -36,6 +36,9 @@ public class OptimizationResponse {
     
     @JsonProperty("utilization_volume_percent")
     private double utilizationVolumePercent;
+
+    @JsonProperty("pareto_solutions")
+    private List<ParetoSolution> paretoSolutions;
     
     public static OptimizationResponse fromSelection(
             String truckId,
@@ -44,7 +47,8 @@ public class OptimizationResponse {
             int totalWeightLbs,
             int totalVolumeCuft,
             int maxWeightLbs,
-            int maxVolumeCuft) {
+            int maxVolumeCuft,
+            List<ParetoSolution> paretoSolutions) {
         
         double weightUtilization = calculateUtilization(totalWeightLbs, maxWeightLbs);
         double volumeUtilization = calculateUtilization(totalVolumeCuft, maxVolumeCuft);
@@ -57,10 +61,11 @@ public class OptimizationResponse {
                 .totalVolumeCuft(totalVolumeCuft)
                 .utilizationWeightPercent(weightUtilization)
                 .utilizationVolumePercent(volumeUtilization)
+                .paretoSolutions(paretoSolutions)
                 .build();
     }
     
-    private static double calculateUtilization(int used, int max) {
+    public static double calculateUtilization(int used, int max) {
         if (max == 0) {
             return 0.0;
         }

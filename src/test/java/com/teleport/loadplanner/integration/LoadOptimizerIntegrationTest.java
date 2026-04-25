@@ -75,9 +75,9 @@ class LoadOptimizerIntegrationTest {
                 .andExpect(jsonPath("$.truck_id").value("truck-123"))
                 .andExpect(jsonPath("$.selected_order_ids").isArray())
                 .andExpect(jsonPath("$.selected_order_ids.length()").value(2))
-                .andExpect(jsonPath("$.total_payout_cents").value(500000))
-                .andExpect(jsonPath("$.total_weight_lbs").value(42000))
-                .andExpect(jsonPath("$.total_volume_cuft").value(2700));
+                .andExpect(jsonPath("$.total_payout_cents").value(430000))
+                .andExpect(jsonPath("$.total_weight_lbs").value(30000))
+                .andExpect(jsonPath("$.total_volume_cuft").value(2100));
     }
     
     @Test
