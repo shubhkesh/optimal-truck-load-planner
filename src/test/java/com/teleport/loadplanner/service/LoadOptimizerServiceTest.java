@@ -307,6 +307,27 @@ class LoadOptimizerServiceTest {
     }
 
     @Test
+    void optimize_time_window_conflict_excluded() {
+        Truck truck = new Truck("truck-tw", 50000, 5000);
+        List<Order> orders = List.of(
+                createOrder("ord-early", 200000L, 10000, 1000, false,
+                        LocalDate.of(2025, 12, 1), LocalDate.of(2025, 12, 5)),
+                createOrder("ord-late", 300000L, 12000, 1200, false,
+                        LocalDate.of(2025, 12, 10), LocalDate.of(2025, 12, 15)),
+                createOrder("ord-overlap", 150000L, 8000, 800, false,
+                        LocalDate.of(2025, 12, 3), LocalDate.of(2025, 12, 12))
+        );
+
+        OptimizationRequest request = new OptimizationRequest(truck, orders);
+        OptimizationResponse response = cut.optimize(request);
+
+        assertFalse(response.getSelectedOrderIds().contains("ord-early")
+                        && response.getSelectedOrderIds().contains("ord-late"),
+                "Orders with non-overlapping time windows must not be combined");
+        assertTrue(response.getTotalWeightLbs() <= 50000);
+    }
+
+    @Test
     void optimize_default_mode_is_revenue() {
         Truck truck = new Truck("truck-default", 44000, 3000);
         List<Order> orders = List.of(
@@ -326,6 +347,11 @@ class LoadOptimizerServiceTest {
 
     private Order createOrder(String id, long payout, int weight, int volume, boolean hazmat) {
         return createOrder(id, "Los Angeles, CA", "Dallas, TX", payout, weight, volume, hazmat);
+    }
+
+    private Order createOrder(String id, long payout, int weight, int volume, boolean hazmat,
+                              LocalDate pickup, LocalDate delivery) {
+        return new Order(id, payout, weight, volume, "Los Angeles, CA", "Dallas, TX", pickup, delivery, hazmat);
     }
     
     private Order createOrder(String id, String origin, String destination, 

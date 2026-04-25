@@ -180,6 +180,7 @@ curl -X POST http://localhost:8080/api/v1/load-optimizer/optimize \
 | `orders[].pickup_date` | date | Yes | Pickup date (YYYY-MM-DD) |
 | `orders[].delivery_date` | date | Yes | Delivery date (YYYY-MM-DD) |
 | `orders[].is_hazmat` | boolean | Yes | Hazardous material flag |
+| `optimization_mode` | string | No | `REVENUE` (default), `UTILIZATION`, or `BALANCED` |
 
 ### Response Schema
 
@@ -192,6 +193,7 @@ curl -X POST http://localhost:8080/api/v1/load-optimizer/optimize \
 | `total_volume_cuft` | integer | Total volume of selected orders |
 | `utilization_weight_percent` | number | Weight utilization percentage |
 | `utilization_volume_percent` | number | Volume utilization percentage |
+| `pareto_solutions` | array | Up to 10 Pareto-optimal trade-offs (revenue vs utilization) |
 
 ### Error Responses
 
@@ -202,6 +204,17 @@ curl -X POST http://localhost:8080/api/v1/load-optimizer/optimize \
   "timestamp": "2025-12-05T10:30:00Z",
   "status": 400,
   "message": "Truck ID is required",
+  "path": "/api/v1/load-optimizer/optimize"
+}
+```
+
+**413 Payload Too Large** - More than 22 orders submitted
+
+```json
+{
+  "timestamp": "2025-12-05T10:30:00Z",
+  "status": 413,
+  "message": "Maximum 22 orders allowed, received 25",
   "path": "/api/v1/load-optimizer/optimize"
 }
 ```

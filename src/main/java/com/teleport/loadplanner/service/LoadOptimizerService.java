@@ -24,7 +24,8 @@ public class LoadOptimizerService {
     private static final int MAX_ORDERS = 22;
     private static final int MAX_PARETO_SOLUTIONS = 10;
 
-    private record DPState(long[] payout, int[] weight, int[] volume, boolean[] valid, int n, int bestRevenueMask) {}
+    private record DPState(long[] payout, int[] weight, int[] volume, boolean[] valid,
+                             int[] maxPickup, int[] minDelivery, int n, int bestRevenueMask) {}
 
     @Cacheable(value = "optimizations", key = "#request")
     public OptimizationResponse optimize(OptimizationRequest request) {
@@ -102,14 +103,24 @@ public class LoadOptimizerService {
         int n = orders.size();
         int totalStates = 1 << n;
 
+        int[] pickupDay = new int[n];
+        int[] deliveryDay = new int[n];
+        for (int i = 0; i < n; i++) {
+            pickupDay[i] = (int) orders.get(i).getPickupDate().toEpochDay();
+            deliveryDay[i] = (int) orders.get(i).getDeliveryDate().toEpochDay();
+        }
+
         long[] dpPayout = new long[totalStates];
         int[] dpWeight = new int[totalStates];
         int[] dpVolume = new int[totalStates];
         int[] dpHazmat = new int[totalStates];
         int[] dpNonHazmat = new int[totalStates];
+        int[] dpMaxPickup = new int[totalStates];
+        int[] dpMinDelivery = new int[totalStates];
         boolean[] dpValid = new boolean[totalStates];
 
         dpValid[0] = true;
+        dpMinDelivery[0] = Integer.MAX_VALUE;
         int bestRevenueMask = 0;
         long bestRevenuePayout = 0;
 
@@ -129,9 +140,12 @@ public class LoadOptimizerService {
                 int newVolume = dpVolume[mask] + order.getVolumeCuft();
                 int newHazmat = dpHazmat[mask] + (order.getIsHazmat() ? 1 : 0);
                 int newNonHazmat = dpNonHazmat[mask] + (order.getIsHazmat() ? 0 : 1);
+                int newMaxPickup = Math.max(dpMaxPickup[mask], pickupDay[i]);
+                int newMinDelivery = Math.min(dpMinDelivery[mask], deliveryDay[i]);
 
                 if (newWeight > truck.getMaxWeightLbs() || newVolume > truck.getMaxVolumeCuft()) continue;
                 if (newHazmat > 1 || (newHazmat > 0 && newNonHazmat > 0)) continue;
+                if (newMaxPickup > newMinDelivery) continue;
 
                 int newMask = mask | (1 << i);
                 long newPayout = dpPayout[mask] + order.getPayoutCents();
@@ -143,11 +157,13 @@ public class LoadOptimizerService {
                     dpVolume[newMask] = newVolume;
                     dpHazmat[newMask] = newHazmat;
                     dpNonHazmat[newMask] = newNonHazmat;
+                    dpMaxPickup[newMask] = newMaxPickup;
+                    dpMinDelivery[newMask] = newMinDelivery;
                 }
             }
         }
 
-        return new DPState(dpPayout, dpWeight, dpVolume, dpValid, n, bestRevenueMask);
+        return new DPState(dpPayout, dpWeight, dpVolume, dpValid, dpMaxPickup, dpMinDelivery, n, bestRevenueMask);
     }
 
     private int selectBestMask(DPState dp, OptimizationMode mode, Truck truck, List<Order> orders) {
