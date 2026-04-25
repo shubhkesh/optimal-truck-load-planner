@@ -291,32 +291,12 @@ optimal-truck-load-planner/
 - **Standard Practice**: Common in financial systems
 - **Type Safety**: Uses `long` for large amounts
 
-## Performance Benchmarks
-
-| Orders | Time (ms) | Memory (MB) |
-|--------|-----------|-------------|
-| 10     | < 50      | ~20         |
-| 15     | < 200     | ~30         |
-| 20     | < 1000    | ~50         |
-| 22     | < 2000    | ~60         |
-
-*Tested on: MacBook Pro M1, 16GB RAM*
-
 ## Constraints & Limitations
 
 - **Max Orders**: 22 (due to 2^n state space)
 - **Route Compatibility**: All orders must share same origin/destination
 - **Hazmat Limit**: Maximum 1 hazmat order per load
 - **Time Windows**: Simplified validation (pickup ≤ delivery)
-
-## Future Enhancements
-
-- 🚀 Multi-route optimization (different origin/destination pairs)
-- 🚀 Advanced time window conflict detection
-- 🚀 Pareto-optimal solutions (multiple trade-off options)
-- 🚀 Configurable optimization weights (revenue vs. utilization)
-- 🚀 Persistent storage with database
-- 🚀 Caching for repeated requests
 
 ## Development
 
@@ -345,11 +325,3 @@ open build/reports/jacoco/test/html/index.html
 docker build -t optimal-truck-load-planner .
 docker run -p 8080:8080 optimal-truck-load-planner
 ```
-
-## License
-
-This project is created as a technical assessment for Teleport.
-
-## Contact
-
-For questions or issues, please contact the development team.
